@@ -1,0 +1,22 @@
+{
+  "enabled": false,
+  "answerMode": "synthetic",
+  "participation": "direct",
+  "discord": { "applicationId": "", "guildId": "", "channelIds": [], "userIds": [] },
+  "replyCooldownMs": 30000,
+  "decisionCooldownMs": 5000,
+  "runForMs": 600000,
+  "stopAfterReply": true,
+  "budgets": {
+    "openai": { "dailyUsd": 0.25, "monthlyUsd": 0.25, "maxRequestsPerDay": 1 },
+    "jev": { "dailyUsd": 0.05, "monthlyUsd": 1, "maxRequestsPerDay": 100 }
+  },
+  "stateDirectory": "../runtime/lean",
+  "credentials": {
+    "discord": "../_private/secrets/discord-bot-token.txt",
+    "openai": "../_private/secrets/openai-api-key.txt",
+    "jev": "../_private/secrets/typesafe-api-key.txt",
+    "foreverdb": "../_private/secrets/foreverdb-api-key.txt"
+  },
+  "foreverdbApproved": false
+}

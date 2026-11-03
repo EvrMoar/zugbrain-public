@@ -1,0 +1,46 @@
+{
+  "enabled": false,
+  "answerMode": "chat",
+  "participation": "direct",
+  "discord": {
+    "applicationId": "",
+    "guildId": "",
+    "channelIds": [],
+    "userPolicy": "allowlist",
+    "userIds": [],
+    "acceptManagedBotRoleMention": true,
+    "botRoleIds": []
+  },
+  "replyCooldownMs": 1000,
+  "decisionCooldownMs": 5000,
+  "runForMs": 0,
+  "stopAfterReply": false,
+  "budgets": {
+    "openai": {
+      "dailyUsd": 0.75,
+      "monthlyUsd": 3,
+      "maxRequestsPerDay": 5
+    },
+    "jev": {
+      "dailyUsd": 0.05,
+      "monthlyUsd": 1,
+      "maxRequestsPerDay": 100
+    }
+  },
+  "stateDirectory": "../runtime/lean",
+  "credentials": {
+    "discord": "../_private/secrets/discord-bot-token.txt",
+    "openai": "../_private/secrets/openai-api-key.txt",
+    "jev": "unused-jev",
+    "foreverdb": "unused-foreverdb"
+  },
+  "foreverdbApproved": false,
+  "webSearchEnabled": false,
+  "news": {
+    "enabled": false,
+    "channelId": "",
+    "timezone": "America/Chicago",
+    "morning": "07:00",
+    "evening": "19:00"
+  }
+}

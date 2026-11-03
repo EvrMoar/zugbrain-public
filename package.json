@@ -1,0 +1,18 @@
+{
+  "name": "zugbrain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.17.0"
+  },
+  "dependencies": {
+    "discord.js": "14.28.0"
+  },
+  "scripts": {
+    "test": "node --test tests/lean/*.test.js",
+    "demo": "node tools/lean/demo.js",
+    "check": "node src/main.js --check config/zugbrain.example.json",
+    "start": "node src/main.js"
+  }
+}

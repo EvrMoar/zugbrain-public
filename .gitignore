@@ -1,0 +1,54 @@
+# Local owner notes and AI overrides. Never force-add this directory.
+_private/
+
+# Real environment files; only deliberately sanitized examples may be shared.
+.env
+.env.*
+*.env
+!.env.example
+!*.env.example
+
+# Credentials and local provider/runtime configuration.
+secrets/
+credentials/
+.aws/
+.openclaw/
+auth-profiles.json
+credentials.json
+tokens.json
+oauth.json
+openclaw.json
+openclaw.json5
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local agent/client settings are not our packaged bot instructions.
+.codex/
+.claude/
+.gemini/
+
+# Runtime state, transcripts, logs, backups and generated output.
+runtime/
+state/
+sessions/
+logs/
+backups/
+*.log
+*.db
+*.sqlite*
+.cache/
+node_modules/
+.venv/
+__pycache__/
+dist/
+build/
+coverage/
+test-results/
+.DS_Store
+Thumbs.db
+
+# Real deployment configuration
+config/local.json
+config/*.local.json

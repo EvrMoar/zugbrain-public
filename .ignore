@@ -1,0 +1,16 @@
+# Ripgrep honors this even before Git is initialized. Never bypass for secrets.
+_private/secrets/
+**/secrets/
+.env
+.env.*
+*.env
+.openclaw/
+credentials/
+auth-profiles.json
+credentials.json
+tokens.json
+oauth.json
+runtime/
+sessions/
+logs/
+backups/

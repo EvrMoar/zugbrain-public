@@ -1,0 +1,45 @@
+# Candidate Docker builds must also exclude local/private data.
+# Lean candidate builds copy only reviewed public source and locked dependencies.
+.git
+**/.git
+_private
+**/_private
+**/.env
+**/.env.*
+**/*.env
+# Even sanitized environment examples stay out of image build contexts.
+**/secrets
+**/credentials
+**/.aws
+**/.openclaw
+**/auth-profiles.json
+**/credentials.json
+**/tokens.json
+**/oauth.json
+**/openclaw.json
+**/openclaw.json5
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/.codex
+**/.claude
+**/.gemini
+**/runtime
+**/state
+**/sessions
+**/logs
+**/backups
+**/*.log
+**/*.db
+**/*.sqlite*
+**/.cache
+**/node_modules
+**/.venv
+**/__pycache__
+**/dist
+**/build
+**/coverage
+**/test-results
+**/.DS_Store
+**/Thumbs.db
