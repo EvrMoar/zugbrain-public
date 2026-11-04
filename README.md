@@ -2,7 +2,7 @@
 
 **Meet Zug: a Discord companion for your World of Warcraft Forever guild.** Ask a question, talk through a build, or request a web search without leaving the channel. Zug answers in a short, plain orc-inspired voice, with room for the details when a question needs them.
 
-WoW advice often mixes editions, old guides and uncertain claims. Zug is instructed to treat Forever as the default and respect requests about other editions. Ordinary chat appends an unverified-data notice; enable explicit web search when you want linked sources.
+WoW advice often mixes editions, old guides and uncertain claims. Zug is instructed to treat Forever as the default and respect requests about other editions. Zug is instructed to admit uncertainty and avoid claiming live verification without evidence. Enable explicit web search when you want linked sources.
 
 - **Help where your guild already talks.** Mention Zug or reply to its message. Direct chat stays running between questions.
 - **Keep the conversation connected.** Recent, bounded reply context helps with follow-up questions.
@@ -16,8 +16,6 @@ Mention the actual Discord bot; `@Zug` below represents that mention.
 > **You:** @Zug What should I think about when choosing a leveling build?
 >
 > **Zug - illustrative reply:** Think about survival, downtime and how you like to fight. What class?
->
-> *No database lookup used; game details may be unverified.*
 >
 > **You, replying to Zug:** Warrior. Mostly solo.
 

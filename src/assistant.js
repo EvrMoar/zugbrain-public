@@ -182,7 +182,7 @@ export class Assistant {
           if (!validForeverDbEvidence(evidence, query)) return 'invalid_evidence';
           text = safeReply(await complete({ ...input, evidence })) + '\n' + FOREVERDB_CREDIT;
         } else {
-          text = safeReply(await complete(input)) + '\n*No database lookup used; game details may be unverified.*';
+          text = safeReply(await complete(input));
         }
       } else {
         const lookupRows = resolveLookup([lookupMessage]) ? [lookupMessage] : context.filter(row => row.authorId !== this.botId);

@@ -58,7 +58,7 @@ test('chat never retrieves without approval or an unambiguous current numeric qu
       lookup: async () => assert.fail('must not fetch a database or read its key'),
     });
     assert.equal(await s.bot.onMessage(message({ content })), 'replied');
-    assert.ok(s.sent[0].includes('No database lookup used'));
+    assert.ok(!s.sent[0].includes('No database lookup used'));
     assert.equal(s.calls.answer, 1);
   }
 });
@@ -98,7 +98,7 @@ test('persistent chat handles two real-client events through OpenAI adapter, wit
   client.rest.get = async route => route.endsWith('/messages') ? [] : records.get(route.split('/').at(-1));
   client.rest.post = async (route, { body }) => {
     if (route.endsWith('/typing')) return;
-    sends++; assert.ok(body.content.includes('game details may be unverified'));
+    sends++; assert.equal(body.content, 'Zug is here to chat.');
     const sent = { id: String(100 + sends), channel_id: '2', author: { id: '99', bot: true }, content: body.content };
     records.set(sent.id, sent); return sent;
   };

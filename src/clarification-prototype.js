@@ -21,8 +21,7 @@ export function prepareClarificationPrototype({ config, botId, origin, prompt, e
   if (!Number.isInteger(ttlMs) || ttlMs <= 0 || ttlMs > 900000 || !Number.isFinite(now) || !parsed.clarification ||
       !humanAllowed(config.discord, origin, botId) || origin.authorId !== target.authorId || origin.channelId !== target.channelId ||
       prompt.guildId !== origin.guildId || prompt.channelId !== origin.channelId || prompt.authorId !== botId || !prompt.bot || prompt.webhook ||
-      prompt.replyToId !== origin.id || (prompt.content !== parsed.text && prompt.content !== parsed.text + '\n' + FOREVERDB_CREDIT &&
-        prompt.content !== parsed.text + '\n*No database lookup used; game details may be unverified.*') || prompt.timestamp < origin.timestamp ||
+      prompt.replyToId !== origin.id || (prompt.content !== parsed.text && prompt.content !== parsed.text + '\n' + FOREVERDB_CREDIT) || prompt.timestamp < origin.timestamp ||
       !Number.isFinite(prompt.timestamp) || now < prompt.timestamp || now - prompt.timestamp >= ttlMs ||
       !Number.isFinite(target.timestamp) || target.timestamp < prompt.timestamp || target.timestamp > now + 5000 || now - target.timestamp > 120000 ||
       [origin, prompt, target].some(row => typeof row.content !== 'string' || row.content.length > 1200) ||
