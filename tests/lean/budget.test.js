@@ -34,7 +34,7 @@ test('tracked successful usage settles once, retains count and leaves crashes/fa
   assert.equal(b.settle(receipt, 0), false);
   assert.equal(b.status().openai.dayMicros, 14300); assert.equal(b.status().openai.count, 1);
   assert.ok(b.reserveTracked('openai', 0.57));
-  const reopened = new Budget(limits, { state: saved });
+  const reopened = new Budget(limits, { state: saved, now: () => date });
   assert.equal(reopened.status().openai.dayMicros, 584300);
   assert.equal(reopened.reserve('openai', 0.01), false); // Two requests, despite settlement.
   date += 86400000;

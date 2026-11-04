@@ -39,8 +39,11 @@
   "news": {
     "enabled": false,
     "channelId": "",
-    "timezone": "America/Chicago",
-    "morning": "07:00",
-    "evening": "19:00"
-  }
+    "timezone": "",
+    "morning": "",
+    "evening": ""
+  },
+  "clarificationTtlMs": 300000,
+  "clarificationMode": "off",
+  "characterMemoryEnabled": false
 }

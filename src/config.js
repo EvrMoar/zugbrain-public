@@ -18,6 +18,7 @@ export function validateConfig(config) {
   if (d.botRoleIds !== undefined && (!Array.isArray(d.botRoleIds) || d.botRoleIds.length > 8 || !d.botRoleIds.every(id) || new Set(d.botRoleIds).size !== d.botRoleIds.length)) fail();
   if (d.acceptManagedBotRoleMention !== undefined && typeof d.acceptManagedBotRoleMention !== 'boolean') fail();
   if (d.userPolicy !== undefined && !['allowlist', 'channel-members'].includes(d.userPolicy)) fail();
+  if (d.peonEmoji !== undefined && (typeof d.peonEmoji !== 'string' || d.peonEmoji !== '' && !/^<a?:[A-Za-z0-9_]{2,32}:\d{1,20}>$/.test(d.peonEmoji))) fail();
   if (config.enabled && (!id(d.applicationId) || !id(d.guildId) || !d.channelIds.length ||
       (d.userPolicy !== 'channel-members' && !d.userIds.length))) fail();
   if (!Number.isInteger(config.replyCooldownMs) || config.replyCooldownMs < 1000 || config.replyCooldownMs > 300000 ||
@@ -32,8 +33,12 @@ export function validateConfig(config) {
         !Number.isSafeInteger(b.maxRequestsPerDay) || b.maxRequestsPerDay < 1 || b.maxRequestsPerDay > 10000) fail();
   }
   if (typeof config.foreverdbApproved !== 'boolean') fail();
+  if (config.characterMemoryEnabled !== undefined && (typeof config.characterMemoryEnabled !== 'boolean' || config.characterMemoryEnabled && config.answerMode !== 'chat')) fail();
   if (config.webSearchEnabled !== undefined && typeof config.webSearchEnabled !== 'boolean') fail();
   if (config.webSearchEnabled && config.answerMode !== 'chat') fail();
+  if (config.clarificationTtlMs !== undefined && (!Number.isInteger(config.clarificationTtlMs) || config.clarificationTtlMs < 0 || config.clarificationTtlMs > 900000)) fail();
+  if (config.clarificationMode !== undefined && !['off', 'shadow', 'assist'].includes(config.clarificationMode)) fail();
+  if (config.clarificationMode && config.clarificationMode !== 'off' && (config.answerMode !== 'chat' || !config.clarificationTtlMs)) fail();
   if (!Number.isInteger(config.runForMs) || config.runForMs < 0 || config.runForMs > 86400000 || typeof config.stopAfterReply !== 'boolean') fail();
   // A connection test must never quietly expand into conversation classification.
   if (config.answerMode === 'synthetic' && config.participation !== 'direct') fail();

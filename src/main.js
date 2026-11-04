@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from './config.js';
 import { openFileBudget } from './budget.js';
-import { createAnswerer, createDecisionGate } from './providers.js';
+import { createAnswerer, createDecisionGate, createClarificationJudge } from './providers.js';
 import { createForeverDb } from './evidence.js';
 import { createWebAnswerer } from './web.js';
 import { openNewsStore } from './news.js';
@@ -11,13 +11,14 @@ import { createNewsProducer } from './news-producer.js';
 import { readNamedKey } from './network.js';
 import { createClient, wireClient, createNewsSender } from './discord.js';
 import { Events } from 'discord.js';
+import { openZugCharacter } from './zug-character.js';
 
 export async function main(args) {
   if (args.length !== 2 || !['--check', '--live'].includes(args[0])) {
     console.error('Use --check CONFIG to validate, or --live CONFIG only for an approved deployment.');
     return 1;
   }
-  let client, ledger, wired, startupTimer, runTimer, newsStore, scheduler, newsTimer;
+  let client, ledger, wired, startupTimer, runTimer, newsStore, scheduler, newsTimer, characterStore;
   let stopped = false;
   const stop = async () => {
     if (stopped) return;
@@ -26,6 +27,7 @@ export async function main(args) {
     try { await client?.destroy(); } catch { console.error('shutdown_failed'); process.exitCode = 1; }
     finally {
       try { newsStore?.close(); } catch { console.error('news_close_failed'); process.exitCode = 1; }
+      try { characterStore?.close(); } catch { console.error('character_close_failed'); process.exitCode = 1; }
       try { ledger?.close(); } catch { console.error('ledger_close_failed'); process.exitCode = 1; }
     }
   };
@@ -34,10 +36,13 @@ export async function main(args) {
     if (args[0] === '--check') { console.log('configuration_valid'); return 0; }
     if (!config.enabled) { console.error('live_mode_disabled'); return 1; }
     ledger = openFileBudget(config.stateDirectory, config.budgets);
+    if (config.characterMemoryEnabled) characterStore = openZugCharacter(path.join(config.stateDirectory, 'character'));
     client = createClient();
     const onUsage = record => console.log(JSON.stringify(record)); // Sanitized counters only; no prompts, IDs, headers or raw errors.
     wired = wireClient(client, { config, budget: ledger.budget,
-      answer: createAnswerer({ budget: ledger.budget, keyFile: config.credentials.openai, answerMode: config.answerMode, onUsage }),
+      character: characterStore?.card,
+      answer: createAnswerer({ budget: ledger.budget, keyFile: config.credentials.openai, answerMode: config.answerMode, clarificationMode: config.clarificationMode || 'off', onUsage }),
+      clarify: createClarificationJudge({ budget: ledger.budget, keyFile: config.credentials.jev, onUsage }),
       decide: createDecisionGate({ budget: ledger.budget, keyFile: config.credentials.jev, onUsage }),
       lookup: createForeverDb({ live: true, approved: config.foreverdbApproved, keyFile: config.credentials.foreverdb }),
       search: createWebAnswerer({ enabled: config.webSearchEnabled === true, budget: ledger.budget, keyFile: config.credentials.openai, onUsage }),

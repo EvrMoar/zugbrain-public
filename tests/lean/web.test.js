@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Budget, reserveWebSearch } from '../../src/budget.js';
-import { createWebAnswerer, webQuery, renderWebAnswer, WEB_DOMAINS } from '../../src/web.js';
+import { createWebAnswerer, webQuery, renderWebAnswer, WEB_DOMAINS, nativeSearchDiagnostic } from '../../src/web.js';
 import { OPENAI_MODEL } from '../../src/providers.js';
 import { configuration, json, message, setup } from './fixtures.js';
 const output = () => [{ type: 'web_search_call', status: 'completed', action: { type: 'search' } },
@@ -67,4 +67,46 @@ test('search provider failure is charged once and never retries', async () => {
     fetchImpl: async () => { calls++; return new Response('untrusted response', { status: 429 }); } });
   await assert.rejects(search('Forever item 19019'), /rate_limited/);
   assert.equal(calls, 1); assert.equal(budget.status().openai.count, 1);
+});
+
+test('native response diagnostics distinguish each rejected contract field without exposing values', () => {
+  const valid = () => ({ model: OPENAI_MODEL, status: 'completed', service_tier: 'default', usage: { input_tokens: 2000, output_tokens: 30 }, output: output() });
+  assert.deepEqual(nativeSearchDiagnostic(valid(), 3000, 512).failures, []);
+  for (const [field, mutate] of [
+    ['model', d => { d.model = 'SENSITIVE-FIXTURE'; }], ['completed', d => { d.status = 'incomplete'; d.incomplete_details = { reason: 'max_output_tokens' }; }],
+    ['tier', d => { delete d.service_tier; }], ['inputUsage', d => { d.usage.input_tokens = -1; }],
+    ['outputUsage', d => { d.usage.output_tokens = 513; }], ['outputArray', d => { d.output = null; }],
+    ['searchCount', d => { d.output = []; }], ['outputKinds', d => { d.output.push({ type: 'SENSITIVE-FIXTURE', token: 'SENSITIVE-FIXTURE' }); }],
+  ]) {
+    const data = valid(); mutate(data); data.error = { message: 'SENSITIVE-FIXTURE' }; data['SENSITIVE-FIXTURE'] = true;
+    const report = nativeSearchDiagnostic(data, 3000, 512);
+    assert.ok(report.failures.includes(field)); assert.ok(!JSON.stringify(report).includes('SENSITIVE-FIXTURE'));
+    if (field === 'completed') assert.equal(report.incompleteReason, 'max_output_tokens');
+  }
+});
+
+test('HTTP 200 incomplete search emits safe diagnostic once and retains full charge without retry', async () => {
+  const reports = [], budget = new Budget(webConfig().budgets); let calls = 0;
+  const search = createWebAnswerer({ enabled: true, budget, keyReader: async () => 'FAKE-ONLY', onUsage: report => reports.push(report), fetchImpl: async () => {
+    calls++; return json({ model: OPENAI_MODEL, status: 'incomplete', service_tier: 'default', incomplete_details: { reason: 'max_output_tokens' },
+      usage: { input_tokens: 2000, output_tokens: 512 }, output: [{ type: 'reasoning', privateText: 'SENSITIVE-FIXTURE' }] });
+  } });
+  await assert.rejects(search('Forever news'), /invalid_web_answer/);
+  assert.equal(calls, 1); assert.equal(reports.length, 1); assert.deepEqual(reports[0].failures, ['completed', 'searchCount']);
+  assert.equal(reports[0].incompleteReason, 'max_output_tokens'); assert.ok(!JSON.stringify(reports).includes('SENSITIVE-FIXTURE'));
+  assert.ok(budget.status().openai.dayMicros > 500000); assert.equal(budget.status().openai.count, 1);
+});
+
+test('one completed search plus an unfinished search is distinct from an unexpected output kind', () => {
+  const valid = rows => ({ model: OPENAI_MODEL, status: 'completed', service_tier: 'default', usage: { input_tokens: 100, output_tokens: 30 }, output: rows });
+  // Both shapes failed ONLY outputKinds in r8. They must now diagnose separately.
+  const extraSearch = nativeSearchDiagnostic(valid([...output(), { type: 'web_search_call', status: 'failed' }]), 3000, 512);
+  assert.deepEqual(extraSearch.failures, ['searchStates']);
+  assert.equal(extraSearch.searchStateCounts.completed, 1); assert.equal(extraSearch.searchStateCounts.failed, 1);
+  const extraKind = nativeSearchDiagnostic(valid([...output(), { type: 'compaction', encrypted_content: 'SENSITIVE-FIXTURE' }]), 3000, 512);
+  assert.deepEqual(extraKind.failures, ['outputKinds']); assert.equal(extraKind.kindCounts.compaction, 1);
+  const unknown = nativeSearchDiagnostic(valid([...output(), { type: 'SENSITIVE-FIXTURE', status: 'SENSITIVE-FIXTURE' },
+    { type: 'web_search_call', status: 'SENSITIVE-FIXTURE' }]), 3000, 512);
+  assert.equal(unknown.kindCounts.other, 1); assert.equal(unknown.searchStateCounts.other, 1);
+  for (const report of [extraSearch, extraKind, unknown]) assert.ok(!JSON.stringify(report).includes('SENSITIVE-FIXTURE'));
 });

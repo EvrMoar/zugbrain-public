@@ -59,7 +59,7 @@ export function renderWebAnswer(output) {
   return text;
 }
 
-export function createWebAnswerer({ enabled = false, budget, keyFile, fetchImpl = fetch, keyReader = readNamedKey, onUsage = () => {} }) {
+export function createWebAnswerer({ enabled = false, budget, keyFile, fetchImpl = fetch, keyReader = readNamedKey, onUsage = () => {}, onDiagnostic = onUsage }) {
   return async (query, signal) => {
     if (!enabled) throw new ProviderError('web_not_enabled');
     if (typeof query !== 'string' || webQuery('search ' + query) !== query) throw new ProviderError('invalid_web_query');
@@ -69,14 +69,45 @@ export function createWebAnswerer({ enabled = false, budget, keyFile, fetchImpl 
       tools: [{ type: 'web_search', search_context_size: 'low', return_token_budget: 'default', external_web_access: true, filters: { allowed_domains: WEB_DOMAINS } }],
       tool_choice: 'required', max_tool_calls: 1, parallel_tool_calls: false,
       max_output_tokens: 512, reasoning: { effort: 'low' }, service_tier: 'default', store: false, stream: false };
-    return requestNativeSearch({ body, budget, keyFile, fetchImpl, keyReader, onUsage, signal, parse: renderWebAnswer });
+    return requestNativeSearch({ body, budget, keyFile, fetchImpl, keyReader, onUsage, onDiagnostic, signal, parse: renderWebAnswer });
   };
 }
 
 // Shared fixed-provider search operation for an explicit query or public bulletin.
 // Parse/validate all evidence before settling. Unknown outcomes keep the full charge.
+export function nativeSearchDiagnostic(data, bytes, maxOutput) {
+  const rows = Array.isArray(data?.output) ? data.output : [];
+  const searches = rows.filter(row => row?.type === 'web_search_call');
+  const checks = {
+    model: data?.model === OPENAI_MODEL,
+    completed: data?.status === 'completed',
+    tier: data?.service_tier === 'default',
+    outputArray: Array.isArray(data?.output),
+    inputUsage: Number.isSafeInteger(data?.usage?.input_tokens) && data.usage.input_tokens >= 0 && data.usage.input_tokens <= WEB_SEARCH_TOKENS + bytes + 4096,
+    outputUsage: Number.isSafeInteger(data?.usage?.output_tokens) && data.usage.output_tokens >= 0 && data.usage.output_tokens <= maxOutput,
+    searchCount: rows.filter(row => row?.type === 'web_search_call' && row.status === 'completed').length === 1,
+    outputKinds: !rows.some(row => !['web_search_call', 'message', 'reasoning'].includes(row?.type)),
+    searchStates: searches.every(row => row.status === 'completed'),
+  };
+  const failures = Object.keys(checks).filter(key => !checks[key]);
+  const incomplete = data?.incomplete_details?.reason;
+  // Fixed field names/enums/booleans only: no response text, arbitrary keys,
+  // model strings, errors, URLs, account IDs or authentication data.
+  const kindNames = ['reasoning', 'web_search_call', 'message', 'compaction', 'function_call', 'function_call_output', 'tool_search_call', 'tool_search_output'];
+  const searchStates = ['completed', 'incomplete', 'failed', 'in_progress', 'searching'];
+  const counts = (values, known) => Object.fromEntries([...known, 'other'].map(name => [name,
+    Math.min(64, values.filter(value => name === 'other' ? !known.includes(value) : value === name).length)]));
+  return { event: 'search_validation', stage: 'envelope', failures, checks,
+    status: ['completed', 'incomplete', 'failed', 'cancelled', 'queued', 'in_progress'].includes(data?.status) ? data.status : 'other',
+    incompleteReason: ['max_output_tokens', 'content_filter'].includes(incomplete) ? incomplete : 'other_or_absent',
+    outputKinds: ['reasoning', 'web_search_call', 'message'].filter(kind => rows.some(row => row?.type === kind)),
+    kindCounts: counts(rows.map(row => row?.type), kindNames),
+    searchStateCounts: counts(searches.map(row => row?.status), searchStates),
+    messagePartCounts: counts(rows.filter(row => row?.type === 'message' && Array.isArray(row.content)).flatMap(row => row.content.map(part => part?.type)), ['output_text', 'refusal']),
+  };
+}
 export async function requestNativeSearch({ body: request, budget, keyFile, fetchImpl = fetch, keyReader = readNamedKey,
-  onUsage = () => {}, signal, parse }) {
+  onUsage = () => {}, onDiagnostic = onUsage, signal, parse }) {
     const started = Date.now();
     if (request.model !== OPENAI_MODEL || !Number.isInteger(request.max_output_tokens) || request.max_output_tokens < 1 ||
         request.max_output_tokens > 2048 || request.max_tool_calls !== 1 || request.tools?.length !== 1 || request.tools[0].type !== 'web_search') throw new ProviderError('invalid_web_request');
@@ -92,13 +123,18 @@ export async function requestNativeSearch({ body: request, budget, keyFile, fetc
       method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body,
       signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(25000)]) : AbortSignal.timeout(25000),
     }, 65536);
-    if (data?.model !== OPENAI_MODEL || data.status !== 'completed' || data.service_tier !== 'default' || !Array.isArray(data.output) ||
-        !Number.isSafeInteger(data.usage?.input_tokens) || data.usage.input_tokens < 0 || data.usage.input_tokens > WEB_SEARCH_TOKENS + bytes + 4096 ||
-        !Number.isSafeInteger(data.usage?.output_tokens) || data.usage.output_tokens < 0 || data.usage.output_tokens > request.max_output_tokens ||
-        data.output.filter(row => row?.type === 'web_search_call' && row.status === 'completed').length !== 1 ||
-        data.output.some(row => !['web_search_call', 'message', 'reasoning'].includes(row?.type) || row.type === 'web_search_call' && row.status !== 'completed')) throw new ProviderError('invalid_web_answer');
+    const diagnostic = nativeSearchDiagnostic(data, bytes, request.max_output_tokens);
+    if (diagnostic.failures.length) {
+      try { onDiagnostic(diagnostic); } catch { /* Optional safe telemetry. */ }
+      throw new ProviderError('invalid_web_answer');
+    }
     signal?.throwIfAborted();
-    const answer = parse(data.output);
+    let answer;
+    try { answer = parse(data.output); }
+    catch (error) {
+      try { onDiagnostic({ event: 'search_validation', stage: 'content', failures: ['content_contract'] }); } catch { /* Optional. */ }
+      throw error;
+    }
     if (!budget.settle(receipt, searchUsageUsd(data.usage))) throw new ProviderError('budget_settlement_unavailable');
     reportUsage(onUsage, 'openai', OPENAI_MODEL, data.usage, started, reservedUsd, 1);
     return answer;

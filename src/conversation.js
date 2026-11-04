@@ -64,6 +64,12 @@ export function isCandidate(message, recentExchange) {
 }
 
 // Provider-visible IDs are per-request aliases, never Discord snowflakes.
+export function providerText(text, speakers = new Map(), botRoleIds = []) {
+  return text.replace(/<@!?(\d+)>/g, (_, id) => `@${speakers.get(id) || 'another_member'}`)
+    .replace(/<@&(\d+)>/g, (_, id) => botRoleIds.includes(id) ? '@zug' : '@role')
+    .replace(/<#\d+>/g, '#channel')
+    .replace(/https?:\/\/(?:(?:canary|ptb)\.)?discord(?:app)?\.com\/channels\/[^\s<>]+/gi, '[Discord message reference]');
+}
 export function providerContext(rows, target, botId, botRoleIds = []) {
   let remaining = BOUNDS.contextChars - target.content.length;
   rows = rows.filter(m => m.id !== target.id).slice(-BOUNDS.messages + 1).reverse().filter(m => {
@@ -78,10 +84,7 @@ export function providerContext(rows, target, botId, botRoleIds = []) {
   const messages = rows.map(row => ({ id: aliases.get(row.id), speaker: speaker(row.authorId),
     replyTo: aliases.get(row.replyToId) || null,
     missingReplyContext: Boolean(row.replyToId && !aliases.has(row.replyToId)),
-    text: row.content.replace(/<@!?(\d+)>/g, (_, id) => `@${speakers.get(id) || 'another_member'}`)
-      .replace(/<@&(\d+)>/g, (_, id) => botRoleIds.includes(id) ? '@zug' : '@role')
-      .replace(/<#\d+>/g, '#channel')
-      .replace(/https?:\/\/(?:(?:canary|ptb)\.)?discord(?:app)?\.com\/channels\/[^\s<>]+/gi, '[Discord message reference]'),
+    text: providerText(row.content, speakers, botRoleIds),
   }));
   return { state: { target: aliases.get(target.id), messages }, aliases };
 }

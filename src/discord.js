@@ -79,6 +79,7 @@ export function createTransport(client, config) {
       } });
       if (sent?.channel_id !== message.channelId || sent.author?.id !== client.user.id || typeof sent.id !== 'string') throw new Error('send_result_unknown');
       return { id: sent.id, guildId: message.guildId, channelId: message.channelId, authorId: client.user.id,
+        confirmedContent: typeof sent.content === 'string' && sent.content === text,
         bot: true, webhook: false, content: text.slice(0, BOUNDS.text), timestamp: Date.now(), edited: null,
         mentionIds: [], replyToId: message.id, replyAuthorId: message.authorId };
     },
@@ -112,7 +113,12 @@ export function wireClient(client, dependencies, { log = () => {}, onFatal = () 
     if (config.discord.acceptManagedBotRoleMention === true && guildRoles) {
       for (const role of guildRoles.values()) if (role.tags?.botId === client.user.id) botRoleIds.add(role.id);
     }
-    const runtimeConfig = { ...config, discord: { ...config.discord, botRoleIds: [...botRoleIds] } };
+    const emoji = config.discord.peonEmoji;
+    const match = emoji && /^<(a?):([A-Za-z0-9_]{2,32}):(\d{1,20})>$/.exec(emoji);
+    const available = match && client.guilds.cache.get(config.discord.guildId)?.emojis?.cache.get(match[3]);
+    const peonEmoji = available && available.available !== false && available.name === match[2] && Boolean(available.animated) === Boolean(match[1]) ? emoji : '';
+    if (emoji && !peonEmoji) log('peon_emoji_unavailable');
+    const runtimeConfig = { ...config, discord: { ...config.discord, botRoleIds: [...botRoleIds], peonEmoji } };
     transport = createTransport(client, config);
     assistant = new Assistant({ ...dependencies, config: runtimeConfig, botId: client.user.id, transport });
     connected = true;
@@ -146,6 +152,7 @@ export function wireClient(client, dependencies, { log = () => {}, onFatal = () 
             if (await transport.fresh(normalized, { direct: true, signal }) && connected && !stopped) {
               const reply = await transport.send(normalized, notices[outcome], signal);
               if (reply) assistant.conversation.observe(reply);
+              if (outcome === 'missing_reply_context') assistant.rememberClarification(normalized, reply);
               log('notice_sent');
             }
           } catch { log('notice_unavailable'); }
@@ -181,7 +188,7 @@ export function wireClient(client, dependencies, { log = () => {}, onFatal = () 
   const resumed = () => { if (!stopped && assistant) { connectionAbort = new AbortController(); connected = true; log('discord_resumed'); } };
   client.on(Events.ShardResume, resumed);
   client.on(Events.ShardReady, resumed);
-  const sweep = setInterval(() => assistant?.conversation.sweep(), 30000);
+  const sweep = setInterval(() => { assistant?.conversation.sweep(); assistant?.sweepClarifications(); }, 30000);
   sweep.unref();
   return { stop() { stopped = true; connected = false; connectionAbort.abort(); assistant?.stop(); clearInterval(sweep); }, get assistant() { return assistant; }, get ready() { return connected && !stopped; } };
 }
